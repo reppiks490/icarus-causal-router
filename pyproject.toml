@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "icarus-causal-router"
+version = "0.1.0"
+description = "Causal delayed-feedback adaptive candidate research, without execution authority"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+icarus-research = "causal_router.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["causal_router*"]
