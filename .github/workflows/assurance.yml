@@ -30,17 +30,8 @@ env:
   PYTHONUNBUFFERED: "1"
 
 jobs:
-  runner-probe:
-    name: Runner availability probe
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Confirm GitHub-hosted runner can execute
-        run: |
-          echo "runner available"
-          python --version
-
   tests:
+    if: github.event_name != 'schedule'
     name: Tests / Python ${{ matrix.python }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -65,6 +56,7 @@ jobs:
         run: python -m unittest discover -s tests -v
 
   deterministic-firewall:
+    if: github.event_name != 'schedule'
     name: Determinism + research-authority firewall
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -113,6 +105,7 @@ jobs:
           retention-days: 7
 
   package:
+    if: github.event_name != 'schedule'
     name: Build + install package artifact
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -140,13 +133,49 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  scheduled-drift:
+    if: github.event_name == 'schedule'
+    name: Daily deterministic drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Compile and run full unit suite
+        run: |
+          python -m compileall -q causal_router tests
+          python -m unittest discover -s tests -v
+      - name: Verify scheduled research-only smoke replay
+        run: |
+          rm -rf .ci-router
+          icarus-research demo --output .ci-router --steps 120 --seed 17
+          icarus-research verify --policy .ci-router/policy.json --db .ci-router/research.db
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path(".ci-router/report.json").read_text(encoding="utf-8"))
+          assert report["authority"] == "research_only"
+          assert report["execution_allowed"] is False
+          assert report["synthetic"] is True
+          assert report["market_validation"] is False
+          assert report["profitability_claim"] is False
+          PY
+
   assurance:
+    if: always() && github.event_name != 'schedule'
     name: Assurance gate
-    if: always()
-    needs: [runner-probe, tests, deterministic-firewall, package]
+    needs: [tests, deterministic-firewall, package]
     runs-on: ubuntu-latest
     steps:
-      - name: Require all gates
+      - name: Require all change gates
         env:
           TESTS: ${{ needs.tests.result }}
           FIREWALL: ${{ needs.deterministic-firewall.result }}
@@ -156,3 +185,14 @@ jobs:
           test "$TESTS" = success
           test "$FIREWALL" = success
           test "$PACKAGE" = success
+
+  scheduled-assurance:
+    if: always() && github.event_name == 'schedule'
+    name: Scheduled assurance gate
+    needs: [scheduled-drift]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require drift check
+        env:
+          DRIFT: ${{ needs.scheduled-drift.result }}
+        run: test "$DRIFT" = success
