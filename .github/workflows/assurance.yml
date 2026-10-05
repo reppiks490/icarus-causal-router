@@ -1,0 +1,148 @@
+name: ICARUS causal-router assurance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "causal_router/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/assurance.yml"
+  pull_request:
+    paths:
+      - "causal_router/**"
+      - "tests/**"
+      - "pyproject.toml"
+      - ".github/workflows/assurance.yml"
+  schedule:
+    - cron: "5 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: causal-router-assurance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  tests:
+    name: Tests / Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Compile source and tests
+        run: python -m compileall -q causal_router tests
+      - name: Run complete deterministic unit suite
+        run: python -m unittest discover -s tests -v
+
+  deterministic-firewall:
+    name: Determinism + research-authority firewall
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Run identical seeded research scenarios twice
+        run: |
+          rm -rf .ci-router
+          mkdir -p .ci-router
+          icarus-research demo --output .ci-router/a --steps 240 --seed 17 | tee .ci-router/a.log
+          icarus-research demo --output .ci-router/b --steps 240 --seed 17 | tee .ci-router/b.log
+          icarus-research verify --policy .ci-router/a/policy.json --db .ci-router/a/research.db | tee .ci-router/verify.log
+      - name: Assert deterministic digest and non-execution authority
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          a = json.loads(Path(".ci-router/a/report.json").read_text(encoding="utf-8"))
+          b = json.loads(Path(".ci-router/b/report.json").read_text(encoding="utf-8"))
+          assert a["result_digest"] == b["result_digest"], "seeded replay digest changed"
+          for label, report in (("a", a), ("b", b)):
+              assert report["authority"] == "research_only", label
+              assert report["execution_allowed"] is False, label
+              assert report["synthetic"] is True, label
+              assert report["market_validation"] is False, label
+              assert report["profitability_claim"] is False, label
+          print("determinism and authority firewall verified")
+          PY
+      - name: Preserve diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: causal-router-diagnostics
+          path: .ci-router/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    name: Build + install package artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build
+          python -m build
+      - name: Install wheel and smoke CLI
+        run: |
+          python -m pip install --force-reinstall dist/*.whl
+          icarus-research --help
+      - name: Preserve package evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: causal-router-package
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  assurance:
+    name: Assurance gate
+    if: always()
+    needs: [tests, deterministic-firewall, package]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all gates
+        env:
+          TESTS: ${{ needs.tests.result }}
+          FIREWALL: ${{ needs.deterministic-firewall.result }}
+          PACKAGE: ${{ needs.package.result }}
+        run: |
+          printf 'tests=%s\nfirewall=%s\npackage=%s\n' "$TESTS" "$FIREWALL" "$PACKAGE"
+          test "$TESTS" = success
+          test "$FIREWALL" = success
+          test "$PACKAGE" = success
