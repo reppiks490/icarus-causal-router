@@ -100,7 +100,7 @@ jobs:
           PY
       - name: Preserve diagnostics on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: causal-router-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: .ci-router/
@@ -130,7 +130,7 @@ jobs:
           python -m pip check
           icarus-research --help
       - name: Preserve package evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: causal-router-package-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist/
@@ -220,7 +220,7 @@ jobs:
           PY
       - name: Upload assurance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: causal-router-assurance-${{ github.run_id }}-${{ github.run_attempt }}
           path: assurance/assurance-summary.json
@@ -276,7 +276,7 @@ jobs:
           PY
       - name: Upload scheduled assurance evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: causal-router-scheduled-assurance-${{ github.run_id }}-${{ github.run_attempt }}
           path: assurance/assurance-summary.json
