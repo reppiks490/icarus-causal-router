@@ -52,3 +52,15 @@ noise; major updates remain isolated for explicit review. Dependency changes tha
 touch `pyproject.toml` or workflow files are still subject to the repository's
 normal assurance gates before merge.
 
+## Runner portability
+
+All assurance jobs default to GitHub-hosted `ubuntu-latest`. The repository
+variable `ASSURANCE_RUNNER` can override that label without editing the
+workflow. This provides a controlled path to a Linux self-hosted runner if
+private hosted-runner quota or billing prevents execution.
+
+Leave `ASSURANCE_RUNNER` unset unless a maintained Linux runner is actually
+registered and isolated for this repository. A self-hosted runner executes
+repository code on the machine that hosts it, so it should not be exposed to
+untrusted pull requests or secrets beyond the minimum required.
+
