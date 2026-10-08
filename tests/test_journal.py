@@ -59,9 +59,14 @@ class JournalTests(unittest.TestCase):
             with Session(path, policy) as session:
                 session.ingest(events[0])
             different, _, _ = make_demo(steps=1, seed=8)
+            # Seeds vary generated events, not the reviewed policy. Exercise
+            # an actual risk-policy change rather than expecting a false mismatch.
+            different.max_pending = policy.max_pending + 1
+            self.assertNotEqual(different.to_dict(), policy.to_dict())
             with self.assertRaisesRegex(ValueError, "policy fingerprint mismatch"):
                 Session(path, different)
 
 
 if __name__ == "__main__":
     unittest.main()
+
