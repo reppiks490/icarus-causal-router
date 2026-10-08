@@ -54,6 +54,18 @@ class Session:
         try:
             self._connection.execute("PRAGMA busy_timeout=10000")
             self._connection.execute("PRAGMA foreign_keys=ON")
+            # Inspect and initialize atomically. A verification attempt must not
+            # recreate a lost policy witness or alter an unrelated database.
+            self._connection.execute("BEGIN IMMEDIATE")
+            tables = {row[0] for row in self._connection.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%'"
+            )}
+            self._existing_journal = bool(tables & {"metadata", "events"})
+            if self._existing_journal and not {"metadata", "events"} <= tables:
+                raise ValueError("journal schema incomplete")
+            if tables and not self._existing_journal:
+                raise ValueError("unrecognized database; refusing journal initialization")
             self._connection.execute(
                 "CREATE TABLE IF NOT EXISTS metadata "
                 "(name TEXT PRIMARY KEY, value TEXT NOT NULL)"
@@ -66,7 +78,10 @@ class Session:
             )
             self._validate_policy()
             self._replay()
+            self._connection.execute("COMMIT")
         except BaseException:
+            if self._connection.in_transaction:
+                self._connection.execute("ROLLBACK")
             self._connection.close()
             self._closed = True
             raise
@@ -77,6 +92,8 @@ class Session:
             "SELECT value FROM metadata WHERE name='policy_sha256'"
         ).fetchone()
         if current is None:
+            if self._existing_journal:
+                raise ValueError("journal policy witness missing; recovery evidence required")
             self._connection.execute(
                 "INSERT INTO metadata (name,value) VALUES ('policy_sha256',?)",
                 (witness,),
@@ -173,3 +190,4 @@ class Session:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
         return False
+
