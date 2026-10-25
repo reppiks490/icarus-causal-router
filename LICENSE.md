@@ -1,10 +1,18 @@
-# Proprietary — All Rights Reserved
+# PROPRIETARY — ALL RIGHTS RESERVED
+
+**NOTICE: NO PUBLIC LICENSE. WRITTEN AUTHORIZATION REQUIRED FOR REUSE.**
 
 Copyright (c) 2026 reppiks490. All rights reserved in original material owned by reppiks490.
 
-This repository is publicly visible for inspection. Public availability does not grant an open-source license or general permission to use this work.
+Public visibility is not permission to use this work. No open-source, freeware, evaluation, personal-use, noncommercial-use, or commercial-use license is granted by publication. Unless an exception below applies, using or running covered code requires the copyright holder's prior written permission.
 
 Except with prior written permission from the applicable copyright holder, you may not copy, modify, distribute, sublicense, sell, commercially exploit, or create derivative works from the original code, documentation, designs, or other copyrightable material covered by this notice. You may not remove ownership notices or represent this work as your own. Attribution alone does not grant permission.
+
+## Unauthorized use and enforcement
+
+Unauthorized reproduction, adaptation, distribution, or other infringement of protected material may result in copyright takedown requests, demands to cease the infringing activity, and civil proceedings seeking injunctive relief, damages, costs, or other remedies where available under applicable law. All rights and remedies are reserved. Attribution, a personal-use purpose, or a claim of ignorance does not by itself grant a license.
+
+This notice does not assert that merely viewing, downloading, or forking a public GitHub repository is automatically illegal. It does not impose automatic fines, create criminal liability, or claim that visitors are tracked. Enforcement depends on the rights involved, the conduct, applicable law, and any existing permissions.
 
 ## Exceptions and scope
 
